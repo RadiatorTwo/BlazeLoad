@@ -1,0 +1,56 @@
+<!-- Gesamtcontainer: füllt den verfügbaren Platz -->
+<MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="w-100">
+
+    <!-- ► ■ ✖ +  (global) -->
+    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+        <MudIconButton Icon="@Icons.Material.Filled.Pause"
+                       Color="Color.Default"
+                       OnClick="@OnPauseAll"
+                       ToolTip="Alle pausieren"/>
+
+        <MudIconButton Icon="@Icons.Material.Filled.Stop"
+                       Color="Color.Default"
+                       OnClick="@OnStopAll"
+                       ToolTip="Alle stoppen"/>
+
+        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                       Color="Color.Default"
+                       OnClick="@OnDeleteAll"
+                       ToolTip="Alle löschen"/>
+
+        <MudIconButton Icon="@Icons.Material.Filled.Add"
+                       Color="Color.Default"
+                       OnClick="@OnAddDownload"
+                       ToolTip="Download hinzufügen"/>
+    </MudButtonGroup>
+
+    <!-- Info-Kacheln rechts -->
+    <MudStack Row Spacing="0">
+        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1">
+            <MudText Typo="Typo.caption">
+                Speed:&nbsp;<b>@TotalSpeed</b>
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1">
+            <MudText Typo="Typo.caption">
+                Active:&nbsp;<b>@Active</b>&nbsp;/&nbsp;@Queued&nbsp;/&nbsp;@Total
+            </MudText>
+        </MudPaper>
+    </MudStack>
+</MudStack>
+
+@code {
+
+    /* ---------- Platzhalterdaten ---------- */
+    [Parameter] public string TotalSpeed { get; set; } = "1.9 MiB/s";
+    [Parameter] public int Active { get; set; } = 2;
+    [Parameter] public int Queued { get; set; } = 17;
+    [Parameter] public int Total { get; set; } = 28;
+
+    /* ---------- Callback-Events ---------- */
+    [Parameter] public EventCallback OnPauseAll { get; set; }
+    [Parameter] public EventCallback OnStopAll { get; set; }
+    [Parameter] public EventCallback OnDeleteAll { get; set; }
+    [Parameter] public EventCallback OnAddDownload { get; set; }
+}

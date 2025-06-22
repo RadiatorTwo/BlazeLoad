@@ -1,0 +1,87 @@
+@using System.ComponentModel.DataAnnotations
+@using MudBlazor
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <DialogContent>
+        <MudForm @ref="_form" Model="_model">
+
+            <!-- URL ---------------------------------------------------- -->
+            <MudTextField Label="Download-URL"
+                          @bind-Value="_model.Url"
+                          Immediate="true"
+                          Required="true"
+                          InputType="InputType.Url"
+                          For="@(() => _model.Url)"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Link"
+                          OnBlur="AutoFileName"/>
+
+            <!-- Dateiname ---------------------------------------------- -->
+            <MudTextField Label="Dateiname"
+                          @bind-Value="_model.FileName"
+                          Immediate="true"
+                          Required="true"
+                          For="@(() => _model.FileName)"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Description"/>
+
+            <!-- Zielverzeichnis ---------------------------------------- -->
+            <MudTextField Label="Zielverzeichnis"
+                          @bind-Value="_model.TargetDirectory"
+                          Immediate="true"
+                          Placeholder="(Standard-Ordner)"
+                          For="@(() => _model.TargetDirectory)"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Folder"/>
+
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text"
+                   OnClick="() => MudDialog.Cancel()">Abbrechen
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="SubmitAsync">Hinzufügen
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+    /* -------- Dialog-Infrastruktur (API v8) -------- */
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    private MudForm? _form;
+    private readonly AddDownloadModel _model = new();
+
+    /* -------- Validierung & Abschluss -------------- */
+    private async Task SubmitAsync()
+    {
+        await _form!.Validate();
+        if (_form.IsValid)
+            MudDialog.Close(DialogResult.Ok(_model)); // v8: CloseAsync
+    }
+
+    /* -------- Auto-Feld: Dateiname aus URL ---------- */
+    private void AutoFileName()
+    {
+        if (string.IsNullOrWhiteSpace(_model.FileName)
+            && Uri.IsWellFormedUriString(_model.Url, UriKind.Absolute))
+        {
+            _model.FileName = Path.GetFileName(new Uri(_model.Url).LocalPath);
+        }
+    }
+
+    /* -------- Daten-DTO mit DataAnnotations -------- */
+    public class AddDownloadModel
+    {
+        [Required, Url(ErrorMessage = "Ungültige URL")]
+        public string Url { get; set; } = string.Empty;
+
+        [Required] public string FileName { get; set; } = string.Empty;
+        public string? TargetDirectory { get; set; }
+    }
+
+}
