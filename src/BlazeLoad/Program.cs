@@ -1,3 +1,4 @@
+using BlazeLoad.API;
 using MudBlazor.Services;
 using BlazeLoad.Components;
 using BlazeLoad.Services;
@@ -12,6 +13,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddSingleton<DownloadService>();
+builder.Services.AddControllers();
 
 var app = builder.Build();
 
@@ -21,11 +23,12 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
-
 app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapApiEndpoints(); 
 
 app.Run();

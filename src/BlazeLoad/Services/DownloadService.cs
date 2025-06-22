@@ -59,7 +59,7 @@ public sealed class DownloadService : IDisposable
 
     /* ========== Öffentliche API ========== */
 
-    public Guid AddDownloadAsync(string url, string? filename = null, string? targetDir = null)
+    public Guid AddDownload(string url, string? filename = null, string? targetDir = null)
     {
         var item = new DownloadItem
         {

@@ -55,7 +55,7 @@
 
         if (result is { Canceled: false, Data: AddDownloadDialog.AddDownloadModel m })
         {
-            Downloads.AddDownloadAsync(m.Url, m.FileName, m.TargetDirectory);
+            Downloads.AddDownload(m.Url, m.FileName, m.TargetDirectory);
 
             // gewünschten Dateinamen einsetzen, falls anders als URL-Name
             var item = Downloads.QueueItems.LastOrDefault();
