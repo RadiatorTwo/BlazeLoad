@@ -10,9 +10,9 @@ public class DownloadItem
     public string? FileName { get; set; } = string.Empty;
     public string? TargetDirectory { get; set; }
 
-    public long TotalBytes { get; set; } = 0;
-    public long ReceivedBytes { get; set; } = 0;
-    public double SpeedBytesPerSec { get; set; } = 0;
+    public long TotalBytes { get; set; }
+    public long ReceivedBytes { get; set; }
+    public double SpeedBytesPerSec { get; set; }
     public TimeSpan? TimeRemaining { get; set; }
     public DownloadStatus Status { get; set; } = DownloadStatus.Created;
 
