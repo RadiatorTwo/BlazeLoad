@@ -1,29 +1,36 @@
-using Downloader;
-
 namespace BlazeLoad.Models;
 
-public class DownloadItem
+public enum DownloadState
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
+    Waiting,
+    Downloading,
+    Paused,
+    Stopped,
+    Error,
+    Complete
+}
 
-    public string SourceUrl { get; set; } = string.Empty;
-    public string? FileName { get; set; } = string.Empty;
-    public string? TargetDirectory { get; set; }
-
-    public long TotalBytes { get; set; }
-    public long ReceivedBytes { get; set; }
-    public double SpeedBytesPerSec { get; set; }
+public sealed class DownloadItem
+{
+    public required string Id { get; init; }
+    public string Url { get; set; } = "";
+    public string Name { get; set; } = "";
+    public long Total { get; set; }
+    public long Done { get; set; }
+    public long Speed { get; set; }
+    public DownloadState State { get; set; }
+    public double Percent => Total > 0 ? Done * 100d / Total : 0;
     public TimeSpan? TimeRemaining { get; set; }
-    public DownloadStatus Status { get; set; } = DownloadStatus.Created;
 
     /* --------- Convenience ---------- */
-    public double ProgressPercent => TotalBytes == 0 ? 0 : ReceivedBytes * 100d / TotalBytes;
-    public string SizeFormatted => ByteFormat(TotalBytes);
-    public string ProgressFormatted => $"{ProgressPercent:0}% / {ByteFormat(ReceivedBytes)}";
+    public double ProgressPercent => Total == 0 ? 0 : Done * 100d / Total;
+    public string SizeFormatted => ByteFormat(Total);
+    public string ProgressFormatted => $"{ProgressPercent:0}% / {ByteFormat(Done)}";
+
 
     public string Info => TimeRemaining is null
-        ? "—"
-        : $"{TimeRemaining:hh\\:mm\\:ss} @ {ByteFormat(SpeedBytesPerSec)}/s";
+        ? $"{ByteFormat(Speed)}/s"
+        : $"{TimeRemaining:hh\\:mm\\:ss} @ {ByteFormat(Speed)}/s";
 
     public static string ByteFormat(double bytes)
     {

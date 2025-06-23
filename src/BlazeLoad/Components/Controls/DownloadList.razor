@@ -1,5 +1,5 @@
 @using BlazeLoad.Models
-@using Downloader
+
 <MudTable Items="Items"
           Class="w-100"
           Dense="true"
@@ -8,7 +8,6 @@
           HorizontalScrollbar="true"
           Bordered="false">
 
-    <!-- Spaltenüberschriften -->
     <HeaderContent>
         <MudTh>Status</MudTh>
         <MudTh>Name</MudTh>
@@ -17,18 +16,17 @@
         <MudTh Align="Right">Progress</MudTh>
     </HeaderContent>
 
-    <!-- 1. Zeile je Datensatz (Metadaten) -->
     <RowTemplate>
         <MudTd>
-            <MudChip T="DownloadStatus"
-                     Color="@StatusColor(context.Status)"
+            <MudChip T="DownloadState"
+                     Color="@StatusColor(context.State)"
                      Size="Size.Small"
                      DisableRipple="true">
-                @context.Status
+                @context.State
             </MudChip>
         </MudTd>
 
-        <MudTd>@context.FileName</MudTd>
+        <MudTd>@context.Name</MudTd>
         <MudTd>@context.Info</MudTd>
         <MudTd Align="Right">@context.SizeFormatted</MudTd>
 
@@ -38,18 +36,17 @@
 
                 <MudIconButton Icon="@Icons.Material.Filled.Pause"
                                Size="Size.Small"
-                               Disabled="@(context.Status is DownloadStatus.Paused or DownloadStatus.Stopped)"
+                               Disabled="@(context.State is DownloadState.Paused or DownloadState.Stopped)"
                                OnClick="@(() => OnPause.InvokeAsync(context))"/>
 
                 <MudIconButton Icon="@Icons.Material.Filled.Stop"
                                Size="Size.Small"
-                               Disabled="@(context.Status == DownloadStatus.Stopped)"
+                               Disabled="@(context.State == DownloadState.Stopped)"
                                OnClick="@(() => OnStop.InvokeAsync(context))"/>
             </MudStack>
         </MudTd>
     </RowTemplate>
 
-    <!-- 2. Zeile je Datensatz (Fortschrittsbalken) -->
     <ChildRowContent>
         <MudTd ColSpan="5" Class="pt-0 pb-8">
             <MudProgressLinear Value="context.ProgressPercent"
@@ -75,13 +72,13 @@
     public EventCallback<DownloadItem> OnStop { get; set; }
 
     /* ---------- Hilfsfunktionen ---------- */
-    private Color StatusColor(DownloadStatus status) => status switch
+    private Color StatusColor(DownloadState status) => status switch
     {
-        DownloadStatus.Running => Color.Success,
-        DownloadStatus.Created => Color.Info,
-        DownloadStatus.Paused => Color.Warning,
-        DownloadStatus.Stopped => Color.Dark,
-        DownloadStatus.Failed => Color.Error,
+        DownloadState.Complete => Color.Success,
+        DownloadState.Downloading => Color.Info,
+        DownloadState.Paused => Color.Warning,
+        DownloadState.Stopped => Color.Dark,
+        DownloadState.Error => Color.Error,
         _ => Color.Default
     };
 

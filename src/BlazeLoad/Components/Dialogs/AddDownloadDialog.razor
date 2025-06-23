@@ -19,7 +19,7 @@
             <MudTextField Label="Dateiname"
                           @bind-Value="_model.FileName"
                           Immediate="true"
-                          Required="true"
+                          Required="false"
                           For="@(() => _model.FileName)"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Description"/>
@@ -50,12 +50,10 @@
 
 @code {
 
-    /* -------- Dialog-Infrastruktur (API v8) -------- */
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     private MudForm? _form;
     private readonly AddDownloadModel _model = new();
 
-    /* -------- Validierung & Abschluss -------------- */
     private async Task SubmitAsync()
     {
         await _form!.Validate();
@@ -63,7 +61,6 @@
             MudDialog.Close(DialogResult.Ok(_model)); // v8: CloseAsync
     }
 
-    /* -------- Auto-Feld: Dateiname aus URL ---------- */
     private void AutoFileName()
     {
         if (string.IsNullOrWhiteSpace(_model.FileName)
@@ -73,13 +70,13 @@
         }
     }
 
-    /* -------- Daten-DTO mit DataAnnotations -------- */
     public class AddDownloadModel
     {
         [Required, Url(ErrorMessage = "Ungültige URL")]
         public string Url { get; set; } = string.Empty;
 
-        [Required] public string FileName { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        
         public string? TargetDirectory { get; set; }
     }
 

@@ -13,21 +13,21 @@ public static class ApiEndpoints
             .WithName("AddDownload");
     }
 
-    private static IResult AddDownload(
+    private static async Task<IResult> AddDownload(
         AddDownloadRequest req,
         DownloadService downloads)
     {
         if (!Uri.IsWellFormedUriString(req.Url, UriKind.Absolute))
             return Results.BadRequest("Ungültige URL");
 
-        var id = downloads.AddDownload(req.Url, req.TargetDirectory);
+        var id = await downloads.AddAsync(req.Url, req.TargetDirectory);
 
         if (string.IsNullOrWhiteSpace(req.FileName))
             return Results.Created($"/api/downloads/{id}", new { id });
         
-        var it = downloads.QueueItems.FirstOrDefault(x => x.Id == id);
+        var it = downloads.Queue.FirstOrDefault(x => x.Id == id);
         
-        if (it != null) it.FileName = req.FileName;
+        if (it != null) it.Name = req.FileName;
 
         return Results.Created($"/api/downloads/{id}", new { id });
     }

@@ -1,233 +1,224 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
-using System.Text.Json;
+using Aria2NET;
 using BlazeLoad.Models;
-using Downloader;
-using DownloadStatus = Downloader.DownloadStatus;
 
 namespace BlazeLoad.Services;
 
-public sealed class DownloadService : IDisposable
+/// <summary>
+/// Singleton-Backend für Downloads (Queue + Live-Status) auf Basis von aria2.
+/// </summary>
+public sealed class DownloadService : IHostedService, IDisposable
 {
-    /* ───── Event meldet jede sichtbare Änderung ───── */
+    public ObservableCollection<DownloadItem> Active { get; } = [];
+    public ObservableCollection<DownloadItem> Queue { get; } = [];
     public event Action? Updated;
 
-    private void RaiseUpdated()
+    /* Gesamtspeed für Toolbar */
+    public string TotalSpeedFormatted => DownloadItem.ByteFormat(_totalSpeed) + "/s";
+    public int ActiveCount => Active.Count;
+    public int QueuedCount => Queue.Count;
+    public int TotalCount => Active.Count + Queue.Count;
+
+
+    private readonly Aria2NetClient _rpc =
+        new("http://127.0.0.1:6800/jsonrpc", "topsecret");
+
+    private readonly ConcurrentDictionary<string, DownloadItem> _map = new();
+    private readonly PeriodicTimer _poll = new(TimeSpan.FromMilliseconds(500));
+    private readonly CancellationTokenSource _cts = new();
+
+    private long _totalSpeed;
+
+    public DownloadService()
     {
-        Updated?.Invoke();
+        // Initiale Abfrage, damit die Listen nicht leer sind
+        _ = RefreshAsync();
+
+        // Polling-Loop starten
+        _ = StartAsync(CancellationToken.None);
     }
 
-    /* ───── öffentliche Bindungen (für UI) ───── */
-    public ObservableCollection<DownloadItem> ActiveItems { get; } = new();
-    public ObservableCollection<DownloadItem> QueueItems { get; } = new();
+    /* ========== Public API ======================================= */
 
-    public string TotalSpeedFormatted { get; private set; } = "0.0 KiB/s";
-    public int ActiveCount => ActiveItems.Count;
-    public int QueuedCount => QueueItems.Count;
-    public int TotalCount => ActiveItems.Count + QueueItems.Count;
-
-    /* ───── interne Felder ───── */
-    private readonly int _maxParallel;
-    private readonly DownloadConfiguration _cfg;
-    private readonly ConcurrentDictionary<Guid, DownloadContext> _running = new();
-    private readonly CancellationTokenSource _cts = new();
-    private readonly PeriodicTimer _infoTimer = new(TimeSpan.FromMilliseconds(500));
-    private readonly Task _queueWorker;
-    private readonly string _persistFile = Path.Combine(AppContext.BaseDirectory, "downloadqueue.json");
-
-    public DownloadService(int maxParallel = 3)
+    public async Task<string> AddAsync(string url, string? dir = null, string? filename = null, int split = 8)
     {
-        _maxParallel = Math.Max(1, maxParallel);
-
-        _cfg = new DownloadConfiguration // global für alle Downloads
+        var opts = new Dictionary<string, object>
         {
-            ChunkCount = 4,
-            ParallelDownload = true,
-            ParallelCount = 4,
-            BufferBlockSize = 64 * 1024, // 64 KiB
-            MaximumMemoryBufferBytes = 1024 * 1024 * 50,
-            MinimumSizeOfChunking = 1024,
-            ReserveStorageSpaceBeforeStartingDownload = false,
-            EnableLiveStreaming = false
+            ["dir"] = dir ?? "/home/radi",
+            ["split"] = split.ToString(),
+            ["max-connection-per-server"] = split.ToString()
         };
 
-        LoadPersistedQueue();
+        var ver = await _rpc.GetVersionAsync();
 
-        _queueWorker = Task.Run(ProcessQueueAsync);
-        _ = Task.Run(UpdateInfoLoop);
-    }
+        if (!string.IsNullOrWhiteSpace(filename))
+        {
+            opts["out"] = filename;
+        }
 
-    /* ========== Öffentliche API ========== */
+        var gid = await _rpc.AddUriAsync([url], opts);
 
-    public Guid AddDownload(string url, string? filename = null, string? targetDir = null)
-    {
         var item = new DownloadItem
         {
-            SourceUrl = url,
-            FileName = filename,
-            TargetDirectory = targetDir ?? Path.Combine(AppContext.BaseDirectory, "Downloads"),
-            Status = DownloadStatus.Created
+            Id = gid,
+            Url = url,
+            Name = Path.GetFileName(new Uri(url).LocalPath),
+            State = DownloadState.Waiting
         };
 
-        QueueItems.Add(item);
-        PersistQueue();
-
+        _map[gid] = item;
+        Queue.Add(item);
+        Updated?.Invoke();
         return item.Id;
     }
 
-    public bool RemoveDownload(Guid id)
+    public Task PauseAsync(Guid id) => _rpc.PauseAsync(id.ToString("N"));
+    public Task ResumeAsync(Guid id) => _rpc.UnpauseAsync(id.ToString("N"));
+    public Task StopAsync(Guid id) => _rpc.RemoveAsync(id.ToString("N"));
+
+    /* ========== polling ========================================== */
+
+    private async Task PollLoop()
     {
-        if (_running.TryRemove(id, out var ctx))
+        try
         {
-            ctx.D.Stop(); // stop laufenden DL
-            ActiveItems.Remove(ctx.Item);
-            return true;
+            while (await _poll.WaitForNextTickAsync(_cts.Token))
+            {
+                await RefreshAsync();
+                Updated?.Invoke();
+            }
         }
-
-        var q = QueueItems.FirstOrDefault(x => x.Id == id);
-        if (q is not null)
+        catch (OperationCanceledException)
         {
-            QueueItems.Remove(q);
-            PersistQueue();
-            return true;
         }
-
-        return false;
     }
 
+    private async Task RefreshAsync()
+    {
+        var active = await _rpc.TellActiveAsync();
+        var waiting = await _rpc.TellWaitingAsync(0, 1000);
+        var stopped = await _rpc.TellStoppedAsync(0, 1000);
+
+        _totalSpeed = 0; // Gesamtspeed neu berechnen
+
+        Update(active, DownloadState.Downloading);
+        Update(waiting, DownloadState.Waiting);
+        Update(stopped, null); // stopped = error / complete
+    }
+
+    /* ========== helpers ========================================== */
+
+    private void Update(IEnumerable<DownloadStatusResult> list,
+        DownloadState? forcedState)
+    {
+        foreach (var r in list)
+        {
+            var gid = r.Gid;
+            if (!_map.TryGetValue(gid, out var it))
+            {
+                it = new DownloadItem { Id = gid };
+                _map[gid] = it;
+                Queue.Add(it);
+            }
+
+            // Basisdaten (einmalig)
+            if (string.IsNullOrWhiteSpace(it.Name) && r.Files?.Count > 0)
+                it.Name = Path.GetFileName(r.Files[0].Path ?? it.Name);
+
+            /* -------- Statusbezogene Felder --------------------- */
+            if (forcedState == DownloadState.Downloading)
+            {
+                it.Total = r.TotalLength;
+                it.Done = r.CompletedLength;
+                it.Speed = r.DownloadSpeed;
+                _totalSpeed += it.Speed; // ← Summieren
+                it.State = DownloadState.Downloading;
+            }
+            else if (forcedState == DownloadState.Waiting)
+            {
+                it.State = DownloadState.Waiting;
+            }
+            else // stopped-Liste
+            {
+                it.State = r.Status == "error"
+                    ? DownloadState.Error
+                    : DownloadState.Complete;
+                it.Speed = 0;
+            }
+
+            Rebucket(it);
+        }
+    }
+
+    private void Rebucket(DownloadItem it)
+    {
+        if (it.State == DownloadState.Downloading)
+        {
+            if (!Active.Contains(it))
+            {
+                Queue.Remove(it);
+                Active.Add(it);
+            }
+        }
+        else if (it.State == DownloadState.Waiting)
+        {
+            if (!Queue.Contains(it))
+            {
+                Active.Remove(it);
+                Queue.Add(it);
+            }
+        }
+        else
+        {
+            Active.Remove(it);
+            Queue.Remove(it);
+        }
+    }
+
+    /* ========== IHostedService plumbing ========================== */
+
+    public Task StartAsync(CancellationToken ct)
+    {
+        _ = PollLoop();
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken _)
+    {
+        _cts.Cancel();
+        return Task.CompletedTask;
+    }
+
+    /* Pausiert alle aktiven Downloads */
     public Task PauseAllAsync()
     {
-        foreach (var x in _running.Values)
-            x.D.Pause();
-        return Task.CompletedTask;
+        // aria2 bringt bereits einen RPC-Befehl „pauseAll“
+        // → wird in Aria2.NET als Async-Methode exponiert
+        return _rpc.PauseAllAsync();
     }
 
-    public Task StopAllAsync()
+    /* Stoppt (entfernt) ALLE derzeit bekannten Downloads */
+    public async Task StopAllAsync()
     {
-        foreach (var x in _running.Values)
-            x.D.Stop();
-        return Task.CompletedTask;
-    }
-
-    /* ========== Queue-Worker ========== */
-
-    private async Task ProcessQueueAsync()
-    {
-        var token = _cts.Token;
-
-        while (!token.IsCancellationRequested)
+        // Falls deine aria2-Version „removeDownloadResult“ unterstützt,
+        // kannst du stattdessen _rpc.RemoveDownloadResultAsync(gid) nutzen.
+        foreach (var gid in _map.Keys.ToArray())
         {
             try
             {
-                if (_running.Count < _maxParallel && QueueItems.Any())
-                {
-                    var next = QueueItems[0];
-                    QueueItems.RemoveAt(0);
-                    _ = StartDownloadAsync(next, token);
-                }
-                else
-                    await Task.Delay(250, token);
+                await _rpc.RemoveAsync(gid); // beendet und löscht aus aria2
             }
-            catch (OperationCanceledException)
+            catch
             {
-                /* ignore */
+                /* ignorieren, wenn Download schon weg */
             }
         }
-    }
-
-    private async Task StartDownloadAsync(DownloadItem item, CancellationToken globalToken)
-    {
-        Directory.CreateDirectory(item.TargetDirectory!);
-
-        if (item.FileName is not null)
-        {
-            var filePath = Path.Combine(item.TargetDirectory!, item.FileName);
-
-            /* File conflict → Skip */
-            if (File.Exists(filePath))
-            {
-                item.Status = DownloadStatus.Stopped;
-                return;
-            }
-        }
-
-        /* Downloader-Instanz pro Item */
-        var builder = DownloadBuilder.New()
-            .WithUrl(item.SourceUrl)
-            .WithDirectory(item.TargetDirectory!)
-            .WithConfiguration(_cfg);
-
-        if (!string.IsNullOrEmpty(item.FileName))
-            builder = builder.WithFileName(item.FileName);
-
-        var dl = builder.Build();
-
-        /* Event-Verdrahtung (liefert alle nötigen Daten) */
-        dl.DownloadStarted += (_, args) =>
-        {
-            item.TotalBytes = args.TotalBytesToReceive;
-            item.Status = DownloadStatus.Running;
-            ActiveItems.Add(item);
-        };
-
-        dl.DownloadProgressChanged += (_, args) =>
-        {
-            item.ReceivedBytes = args.ReceivedBytesSize;
-            item.SpeedBytesPerSec = args.BytesPerSecondSpeed;
-            //item.TimeRemaining = args.TimeRemaining;
-            // Prozent wird über Received/Total berechnet
-        };
-
-        dl.DownloadFileCompleted += (_, args) =>
-        {
-            item.Status = args.Cancelled ? DownloadStatus.Stopped
-                : args.Error != null ? DownloadStatus.Failed : DownloadStatus.Stopped;
-            Cleanup(item.Id);
-            PersistQueue();
-        };
-
-        /* Start */
-        var ctx = new DownloadContext { Item = item, D = dl };
-
-        _running[item.Id] = ctx;
-
-        await dl.StartAsync(globalToken);
-    }
-
-    private void Cleanup(Guid id)
-    {
-        if (_running.TryRemove(id, out var ctx))
-            ActiveItems.Remove(ctx.Item);
-    }
-
-    /* ========== Info-Ticker & Persistence ========== */
-
-    private async Task UpdateInfoLoop()
-    {
-        while (await _infoTimer.WaitForNextTickAsync(_cts.Token))
-            UpdateInfo();
-    }
-
-    private void UpdateInfo()
-    {
-        var speed = ActiveItems.Sum(i => i.SpeedBytesPerSec);
-        TotalSpeedFormatted = DownloadItem.ByteFormat(speed) + "/s";
-        RaiseUpdated();
-    }
-
-    private void PersistQueue() => File.WriteAllText(_persistFile, JsonSerializer.Serialize(QueueItems));
-
-    private void LoadPersistedQueue()
-    {
-        if (File.Exists(_persistFile))
-            foreach (var it in JsonSerializer.Deserialize<List<DownloadItem>>(File.ReadAllText(_persistFile)) ?? [])
-                QueueItems.Add(it);
     }
 
     public void Dispose()
     {
         _cts.Cancel();
-        _queueWorker.Dispose();
-        _infoTimer.Dispose();
+        _poll.Dispose();
     }
 }
