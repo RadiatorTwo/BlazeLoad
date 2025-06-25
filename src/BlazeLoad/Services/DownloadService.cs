@@ -12,6 +12,7 @@ public sealed class DownloadService : IHostedService, IDisposable
 {
     public ObservableCollection<DownloadItem> Active { get; } = [];
     public ObservableCollection<DownloadItem> Queue { get; } = [];
+    public ObservableCollection<DownloadItem> Stopped { get; } = [];
     public event Action? Updated;
 
     /* Gesamtspeed für Toolbar */
@@ -19,7 +20,6 @@ public sealed class DownloadService : IHostedService, IDisposable
     public int ActiveCount => Active.Count;
     public int QueuedCount => Queue.Count;
     public int TotalCount => Active.Count + Queue.Count;
-
 
     private readonly Aria2NetClient _rpc =
         new("http://127.0.0.1:6800/jsonrpc", "topsecret");
@@ -73,9 +73,9 @@ public sealed class DownloadService : IHostedService, IDisposable
         return item.Id;
     }
 
-    public Task PauseAsync(Guid id) => _rpc.PauseAsync(id.ToString("N"));
-    public Task ResumeAsync(Guid id) => _rpc.UnpauseAsync(id.ToString("N"));
-    public Task StopAsync(Guid id) => _rpc.RemoveAsync(id.ToString("N"));
+    public Task PauseAsync(DownloadItem item) => _rpc.PauseAsync(item.Id);
+    public Task ResumeAsync(DownloadItem item) => _rpc.UnpauseAsync(item.Id);
+    public Task StopAsync(DownloadItem item) => _rpc.RemoveAsync(item.Id);
 
     /* ========== polling ========================================== */
 
@@ -104,7 +104,8 @@ public sealed class DownloadService : IHostedService, IDisposable
 
         Update(active, DownloadState.Downloading);
         Update(waiting, DownloadState.Waiting);
-        Update(stopped, null); // stopped = error / complete
+        Update(stopped, DownloadState.Stopped);
+        Update(stopped, DownloadState.Error);
     }
 
     /* ========== helpers ========================================== */
@@ -126,25 +127,30 @@ public sealed class DownloadService : IHostedService, IDisposable
             if (string.IsNullOrWhiteSpace(it.Name) && r.Files?.Count > 0)
                 it.Name = Path.GetFileName(r.Files[0].Path ?? it.Name);
 
-            /* -------- Statusbezogene Felder --------------------- */
-            if (forcedState == DownloadState.Downloading)
+            switch (forcedState)
             {
-                it.Total = r.TotalLength;
-                it.Done = r.CompletedLength;
-                it.Speed = r.DownloadSpeed;
-                _totalSpeed += it.Speed; // ← Summieren
-                it.State = DownloadState.Downloading;
-            }
-            else if (forcedState == DownloadState.Waiting)
-            {
-                it.State = DownloadState.Waiting;
-            }
-            else // stopped-Liste
-            {
-                it.State = r.Status == "error"
-                    ? DownloadState.Error
-                    : DownloadState.Complete;
-                it.Speed = 0;
+                /* -------- Statusbezogene Felder --------------------- */
+                case DownloadState.Downloading:
+                    it.Total = r.TotalLength;
+                    it.Done = r.CompletedLength;
+                    it.Speed = r.DownloadSpeed;
+                    _totalSpeed += it.Speed; // ← Summieren
+                    it.State = DownloadState.Downloading;
+                    break;
+                case DownloadState.Waiting when r.Status == "paused":
+                    it.State = DownloadState.Paused;
+                    it.Speed = 0;
+                    break;
+                case DownloadState.Waiting:
+                    it.State = DownloadState.Waiting;
+                    break;
+                // stopped-Liste
+                default:
+                    it.State = r.Status == "error"
+                        ? DownloadState.Error
+                        : DownloadState.Complete;
+                    it.Speed = 0;
+                    break;
             }
 
             Rebucket(it);
@@ -153,26 +159,47 @@ public sealed class DownloadService : IHostedService, IDisposable
 
     private void Rebucket(DownloadItem it)
     {
-        if (it.State == DownloadState.Downloading)
+        switch (it.State)
         {
-            if (!Active.Contains(it))
+            case DownloadState.Downloading:
             {
-                Queue.Remove(it);
-                Active.Add(it);
+                if (!Active.Contains(it))
+                {
+                    if (!Queue.Remove(it))
+                        Stopped.Remove(it);
+
+                    Active.Add(it);
+                }
+
+                break;
             }
-        }
-        else if (it.State == DownloadState.Waiting)
-        {
-            if (!Queue.Contains(it))
+            case DownloadState.Paused:
             {
+                //Active.Remove(it);
+                //Queue.Add(it); // oder eigene „Paused“-Liste
+
+                break;
+            }
+            case DownloadState.Waiting:
+            {
+                if (!Queue.Contains(it))
+                {
+                    Active.Remove(it);
+                    Queue.Add(it);
+                }
+
+                break;
+            }
+            case DownloadState.Stopped:
+            case DownloadState.Error:
+            case DownloadState.Complete:
+            default:
+                if (Stopped.Contains(it))
+                    return; // bereits drin
                 Active.Remove(it);
-                Queue.Add(it);
-            }
-        }
-        else
-        {
-            Active.Remove(it);
-            Queue.Remove(it);
+                Queue.Remove(it);
+                Stopped.Add(it);
+                break;
         }
     }
 

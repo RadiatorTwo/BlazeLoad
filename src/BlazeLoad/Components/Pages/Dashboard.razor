@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using BlazeLoad.Components.Controls
 @using BlazeLoad.Components.Dialogs
+@using BlazeLoad.Models
 @using BlazeLoad.Services
 
 @inject IDialogService DialogService
@@ -8,7 +9,6 @@
 
 <PageTitle>BlazeLoad - Dashboard</PageTitle>
 <MudDivider Class="my-2"/>
-<MudText Typo="Typo.h5" Class="mb-2">@_repaintCount</MudText>
 <DownloadToolBar OnAddDownload="ShowAddDialog"
                  TotalSpeed="@Downloads.TotalSpeedFormatted"
                  Active="@Downloads.ActiveCount"
@@ -19,7 +19,10 @@
 
 <MudDivider Class="my-2"/>
 
-<DownloadList Items="@Downloads.Active"/>
+<DownloadList Items="@Downloads.Active"
+              OnResume="@OnResumeClicked"
+              OnStop="@OnStopClicked"
+              OnPause="@OnPauseClicked"/>
 
 @code {
 
@@ -28,12 +31,24 @@
         Downloads.Updated += OnDownloadsUpdated;
     }
 
-    private long _repaintCount;
-
     private void OnDownloadsUpdated()
     {
-        Interlocked.Increment(ref _repaintCount);
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnResumeClicked(DownloadItem item)
+    {
+        await Downloads.ResumeAsync(item);
+    }
+    
+    private async Task OnPauseClicked(DownloadItem item)
+    {
+        await Downloads.PauseAsync(item);
+    }
+
+    private async Task OnStopClicked(DownloadItem item)
+    {
+        await Downloads.StopAsync(item);
     }
 
     public void Dispose()

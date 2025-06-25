@@ -34,10 +34,18 @@
             <MudStack Direction="Row" Row="true" AlignItems="AlignItems.Center" JustifyContent="FlexEnd" Spacing="1">
                 <MudText Typo="Typo.body2">@($"{context.ProgressPercent:0}%")</MudText>
 
-                <MudIconButton Icon="@Icons.Material.Filled.Pause"
-                               Size="Size.Small"
-                               Disabled="@(context.State is DownloadState.Paused or DownloadState.Stopped)"
-                               OnClick="@(() => OnPause.InvokeAsync(context))"/>
+                @if (context.State == DownloadState.Paused || context.State == DownloadState.Stopped)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayArrow"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OnResume.InvokeAsync(context))"/>
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Pause"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OnPause.InvokeAsync(context))"/>
+                }
 
                 <MudIconButton Icon="@Icons.Material.Filled.Stop"
                                Size="Size.Small"
@@ -63,6 +71,10 @@
     [Parameter]
     public IEnumerable<DownloadItem> Items { get; set; } = Enumerable.Empty<DownloadItem>();
 
+    /// <summary>Event: User klickt Fortsetzen.</summary>
+    [Parameter]
+    public EventCallback<DownloadItem> OnResume { get; set; }
+    
     /// <summary>Event: User klickt Pause/Fortsetzen.</summary>
     [Parameter]
     public EventCallback<DownloadItem> OnPause { get; set; }

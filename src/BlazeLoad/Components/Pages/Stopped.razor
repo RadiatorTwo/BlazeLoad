@@ -1,4 +1,4 @@
-@page "/queue"
+@page "/stopped"
 
 @using BlazeLoad.Components.Controls
 @using BlazeLoad.Components.Dialogs
@@ -7,7 +7,7 @@
 @inject IDialogService DialogService
 @inject DownloadService Downloads
 
-<PageTitle>BlazeLoad - Dashboard</PageTitle>
+<PageTitle>BlazeLoad - Stopped Downloads</PageTitle>
 <MudDivider Class="my-2"/>
 <DownloadToolBar OnAddDownload="ShowAddDialog"
                  TotalSpeed="@Downloads.TotalSpeedFormatted"
@@ -19,7 +19,7 @@
 
 <MudDivider Class="my-2"/>
 
-<DownloadList Items="@Downloads.Queue"/>
+<DownloadList Items="@Downloads.Stopped"/>
 
 @code {
     protected override void OnInitialized()
