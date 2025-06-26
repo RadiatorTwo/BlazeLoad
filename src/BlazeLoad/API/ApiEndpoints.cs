@@ -20,13 +20,13 @@ public static class ApiEndpoints
         if (!Uri.IsWellFormedUriString(req.Url, UriKind.Absolute))
             return Results.BadRequest("Ungültige URL");
 
-        var id = await downloads.AddAsync(req.Url, req.TargetDirectory);
+        var id = await downloads.AddAsync(req.Url, req.TargetDirectory, req.FileName);
 
         if (string.IsNullOrWhiteSpace(req.FileName))
             return Results.Created($"/api/downloads/{id}", new { id });
-        
+
         var it = downloads.Queue.FirstOrDefault(x => x.Id == id);
-        
+
         if (it != null) it.Name = req.FileName;
 
         return Results.Created($"/api/downloads/{id}", new { id });
