@@ -5,21 +5,21 @@
 @using BlazeLoad.Services
 
 @inject IDialogService DialogService
-@inject DownloadService Downloads
+@inject PersistentDownloadService Downloads
 
 <PageTitle>BlazeLoad - Stopped Downloads</PageTitle>
 <MudDivider Class="my-2"/>
 <DownloadToolBar OnAddDownload="ShowAddDialog"
-                 TotalSpeed="@Downloads.TotalSpeedFormatted"
-                 Active="@Downloads.ActiveCount"
-                 Queued="@Downloads.QueuedCount"
-                 Total="@Downloads.TotalCount"
+                 TotalSpeed="@Downloads.To"
+                 Active="@Downloads.Active.Count"
+                 Queued="@Downloads.Queue.Count"
+                 Total="@Downloads."
                  OnPauseAll="@Downloads.PauseAllAsync"
                  OnStopAll="@Downloads.StopAllAsync"/>
 
 <MudDivider Class="my-2"/>
 
-<DownloadList Items="@Downloads.Stopped"/>
+<DownloadList Items="@Downloads.History"/>
 
 @code {
     protected override void OnInitialized()
