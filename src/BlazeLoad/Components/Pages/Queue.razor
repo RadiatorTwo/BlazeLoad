@@ -5,7 +5,7 @@
 @using BlazeLoad.Services
 
 @inject IDialogService DialogService
-@inject DownloadService Downloads
+@inject PersistentDownloadService Downloads
 
 <PageTitle>BlazeLoad - Dashboard</PageTitle>
 <MudDivider Class="my-2"/>
@@ -14,8 +14,8 @@
                  Active="@Downloads.ActiveCount"
                  Queued="@Downloads.QueuedCount"
                  Total="@Downloads.TotalCount"
-                 OnPauseAll="@Downloads.PauseAllAsync"
-                 OnStopAll="@Downloads.StopAllAsync"/>
+                 OnPauseAll="@OnPauseAll"
+                 OnStopAll="@OnStopAll"/>
 
 <MudDivider Class="my-2"/>
 
@@ -36,6 +36,9 @@
     {
         Downloads.Updated -= OnDownloadsUpdated;
     }
+    
+    private Task OnPauseAll() => Downloads.PauseAllAsync();
+    private Task OnStopAll()  => Downloads.StopAllAsync();
 
     private async Task ShowAddDialog()
     {

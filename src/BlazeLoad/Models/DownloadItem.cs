@@ -21,7 +21,7 @@ public sealed class DownloadItem
     /// Primärschlüssel in der lokalen Datenbank – unabhängig vom Backend.
     /// </summary>
     [Key]
-    public string Id { get; set; } = string.Empty;
+    public Guid Id { get; set; } = Guid.Empty;
 
     /// <summary>
     /// Die vom eigentlichen Download-Backend (z. B. aria2) vergebene ID.
@@ -33,10 +33,10 @@ public sealed class DownloadItem
     public required string Url { get; set; }
 
     /// <summary>Ausgabedatei inkl. Erweiterung, ohne Pfad.</summary>
-    public required string Name { get; set; }
+    public string? Name { get; set; }
 
     /// <summary>Zielverzeichnis. Muss im Backend existieren.</summary>
-    public string TargetDirectory { get; set; } = string.Empty;
+    public string? TargetDirectory { get; set; }
 
     /// <summary>Anzahl gleichzeitiger Verbindungen pro Server.</summary>
     public int Connections { get; set; } = 8;
@@ -44,7 +44,7 @@ public sealed class DownloadItem
     public long TotalBytes { get; set; }
     public long DownloadedBytes { get; set; }
     public long SpeedBytesPerSec { get; set; }
-
+    
     public DownloadState State { get; set; } = DownloadState.Waiting;
 
     public DateTimeOffset AddedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -93,4 +93,13 @@ public sealed class DownloadItem
         pow = Math.Clamp(pow, 0, units.Length - 1);
         return $"{bytes / Math.Pow(1024, pow):0.##} {units[pow]}";
     }
+    
+    public bool Equals(DownloadItem? other)
+        => other is not null && Id.Equals(other.Id);
+
+    public override bool Equals(object? obj)
+        => Equals(obj as DownloadItem);
+
+    public override int GetHashCode()
+        => Id.GetHashCode();
 }

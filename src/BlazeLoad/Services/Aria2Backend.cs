@@ -12,14 +12,14 @@ public sealed class Aria2Backend : IDownloadBackend, IAsyncDisposable
 
     public async Task<string> AddAsync(DownloadItem item, CancellationToken ct = default)
     {
-        var opts = new Dictionary<string, object?>
+        var opts = new Dictionary<string, object>
         {
             ["dir"] = item.TargetDirectory,
             ["out"] = item.Name,
             ["split"] = item.Connections.ToString(),
             ["max-connection-per-server"] = item.Connections.ToString()
         };
-
+        
         var gid = await _rpc.AddUriAsync([item.Url], opts, null, ct);
         return gid;
     }
@@ -41,8 +41,9 @@ public sealed class Aria2Backend : IDownloadBackend, IAsyncDisposable
     }
 
     // public ValueTask DisposeAsync() => _rpc.DisposeAsync();
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         // TODO release managed resources here
+        return ValueTask.CompletedTask;
     }
 }

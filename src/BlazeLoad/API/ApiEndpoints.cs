@@ -24,7 +24,7 @@ public static class ApiEndpoints
         {
             Url = req.Url,
             Name = req.FileName,
-            TargetDirectory = req.TargetDirectory
+            TargetDirectory = req.TargetDirectory,
         };
         
         var id = await downloads.AddAsync(downloadItem);
