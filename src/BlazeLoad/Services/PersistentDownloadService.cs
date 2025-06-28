@@ -92,7 +92,7 @@ public sealed class PersistentDownloadService : BackgroundService
     public async Task DeleteAllStoppedAsync()
     {
         await using var ctx = await _dbFactory.CreateDbContextAsync();
-        foreach (var it in History)
+        foreach (var it in History.ToList())
         {
             var item = ctx.Downloads.SingleOrDefault(d => d.Id == it.Id);
 
