@@ -25,17 +25,33 @@
     </MudButtonGroup>
 
     <!-- Info-Kacheln rechts -->
-    <MudStack Row Spacing="0">
-        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1">
+    <MudStack Row Spacing="0" AlignItems="AlignItems.Center">
+        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1" Height="30px">
             <MudText Typo="Typo.caption">
                 Speed:&nbsp;<b>@TotalSpeed</b>
             </MudText>
         </MudPaper>
 
-        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1">
+        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1" Height="30px">
             <MudText Typo="Typo.caption">
                 Active:&nbsp;<b>@Active</b>&nbsp;/&nbsp;@Queued&nbsp;/&nbsp;@Total
             </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Outlined="true" Class="px-3 py-1" Height="30px">
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.caption" Class="mr-1">
+                    RPC:
+                </MudText>
+                @if (RpcConnected)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small"/>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Small"/>
+                }
+            </MudStack>
         </MudPaper>
     </MudStack>
 </MudStack>
@@ -43,10 +59,12 @@
 @code {
 
     /* ---------- Platzhalterdaten ---------- */
-    [Parameter] public string TotalSpeed { get; set; } = "1.9 MiB/s";
+    [Parameter] public string TotalSpeed { get; set; } = "0.0 MiB/s";
     [Parameter] public int Active { get; set; } = 2;
     [Parameter] public int Queued { get; set; } = 17;
     [Parameter] public int Total { get; set; } = 28;
+
+    [Parameter] public bool RpcConnected { get; set; } = true;
 
     /* ---------- Callback-Events ---------- */
     [Parameter] public EventCallback OnPauseAll { get; set; }

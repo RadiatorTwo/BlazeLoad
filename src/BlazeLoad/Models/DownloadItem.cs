@@ -21,29 +21,35 @@ public sealed class DownloadItem
     /// Primärschlüssel in der lokalen Datenbank – unabhängig vom Backend.
     /// </summary>
     [Key]
-    public Guid Id { get; set; } = Guid.Empty;
+    public Guid Id { get; init; } = Guid.Empty;
 
     /// <summary>
     /// Die vom eigentlichen Download-Backend (z. B. aria2) vergebene ID.
     /// Darf leer sein, solange der Job noch nicht an das Backend übergeben
     /// wurde. Wird spätestens nach dem Hinzufügen gesetzt.
     /// </summary>
+    
+    [MaxLength(64)]
     public string BackendId { get; set; } = string.Empty;
 
+    [MaxLength(1024)]
     public required string Url { get; set; }
 
-    /// <summary>Ausgabedatei inkl. Erweiterung, ohne Pfad.</summary>
+    /// <summary>Ausgabedatei inklusive Erweiterung, ohne Pfad.</summary>
+    [MaxLength(1024)]
     public string? Name { get; set; }
 
     /// <summary>Zielverzeichnis. Muss im Backend existieren.</summary>
+    [MaxLength(1024)]
     public string? TargetDirectory { get; set; }
 
     /// <summary>Anzahl gleichzeitiger Verbindungen pro Server.</summary>
     public int Connections { get; set; } = 8;
 
+    public bool PausedDueToDisconnect { get; set; }
+
     public long TotalBytes { get; set; }
     public long DownloadedBytes { get; set; }
-    public long SpeedBytesPerSec { get; set; }
     
     public DownloadState State { get; set; } = DownloadState.Waiting;
 
@@ -52,10 +58,14 @@ public sealed class DownloadItem
     public DateTimeOffset? FinishedAt { get; set; }
 
     /// <summary>Letzte Fehlermeldung (falls State == Error).</summary>
+    [MaxLength(1024)]
     public string? ErrorMessage { get; set; }
 
     /* ------------- Convenience / UI-Only ---------------- */
-
+    
+    [NotMapped]
+    public long SpeedBytesPerSec { get; set; }
+    
     [NotMapped]
     public double ProgressPercent => TotalBytes == 0 ? 0 : DownloadedBytes * 100d / TotalBytes;
 

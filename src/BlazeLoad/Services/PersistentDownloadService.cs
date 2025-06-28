@@ -10,7 +10,6 @@ public sealed class PersistentDownloadService : BackgroundService
     private readonly ILogger<PersistentDownloadService> _logger;
     private readonly IDownloadBackend _backend;
     private readonly IDbContextFactory<DownloadDbContext> _dbFactory;
-    private readonly PeriodicTimer _timer = new(TimeSpan.FromMilliseconds(500));
 
     public ObservableCollection<DownloadItem> Active { get; } = [];
     public ObservableCollection<DownloadItem> Queue { get; } = [];
@@ -19,6 +18,11 @@ public sealed class PersistentDownloadService : BackgroundService
     private readonly Dictionary<DownloadState, ObservableCollection<DownloadItem>> _buckets;
 
     private readonly Dictionary<Guid, DownloadState> _lastStates = new();
+
+    /// <summary>
+    /// True, wenn gerade eine Verbindung zum aria2-RPC-Server besteht.
+    /// </summary>
+    public bool RpcConnection { get; private set; } = true;
 
     public event Action? Updated;
 
@@ -43,7 +47,7 @@ public sealed class PersistentDownloadService : BackgroundService
         {
             [DownloadState.Downloading] = Active,
             [DownloadState.Waiting] = Queue,
-            [DownloadState.Paused] = Queue, // oder eigene Paused-Liste
+            [DownloadState.Paused] = Active,
             [DownloadState.Stopped] = History,
             [DownloadState.Error] = History,
             [DownloadState.Complete] = History
@@ -95,14 +99,17 @@ public sealed class PersistentDownloadService : BackgroundService
     {
         await using var ctx = await _dbFactory.CreateDbContextAsync(stoppingToken);
 
-        // Alle noch nicht “fertigen” Items dem Backend bekanntmachen
-        foreach (var it in ctx.Downloads.Where(d =>
-                     d.State == DownloadState.Waiting || d.State == DownloadState.Downloading))
-        {
-            // Wenn aria2 frisch ist, muss AddAsync neu aufgerufen werden
-            it.BackendId = await _backend.AddAsync(it, stoppingToken);
-            ctx.Update(it);
-        }
+        // Alle noch nicht „fertigen“ Items dem Backend bekanntmachen.
+        // Als erstes suchen wir welche die eventuell Status Downloading haben.
+        // Diese sollten als erstes wieder gestartet werden.
+        // Danach die mit Status Paused und dem Flag PausedDueToDisconnect.
+        // Alle anderen werden später abgearbeitet.
+        var downloading = ctx.Downloads.Where(d => d.State == DownloadState.Downloading).ToList();
+        var paused = ctx.Downloads.Where(d => d.State == DownloadState.Paused && d.PausedDueToDisconnect == true)
+            .ToList();
+
+        await ReAddExistingDownload(downloading, stoppingToken, ctx);
+        await ReAddExistingDownload(paused, stoppingToken, ctx);
 
         await ctx.SaveChangesAsync(stoppingToken);
 
@@ -121,13 +128,45 @@ public sealed class PersistentDownloadService : BackgroundService
         }
     }
 
+    private async Task ReAddExistingDownload(List<DownloadItem> items, CancellationToken ct, DownloadDbContext ctx)
+    {
+        foreach (var it in items)
+        {
+            // Erst mal prüfen ob wir noch freie Slots haben
+            var states = await _backend.GetStatusesAsync(ct);
+            var active = states.Count(s => s.RawState is "active");
+            var freeSlots = Math.Max(MaxParallel - active, 0);
+
+            if (freeSlots > 0)
+            {
+                it.BackendId = await _backend.AddAsync(it, ct);
+                it.State = DownloadState.Downloading;
+            
+                Queue.Remove(it);
+                Active.Remove(it);
+                Active.Add(it);
+            }
+            else
+            {
+                // Wenn aria2 voll ist, dann in die Queue zurück schieben.
+                it.State = DownloadState.Waiting;
+                Active.Remove(it);
+                Queue.Remove(it);
+                Queue.Add(it);
+            }
+
+            _lastStates[it.Id] = it.State;
+
+            ctx.Update(it);
+            ReBucket(it);
+        }
+    }
+
     private const int MaxParallel = 2;
 
     private async Task RefreshFromBackend(CancellationToken ct)
     {
         await using var ctx = await _dbFactory.CreateDbContextAsync(ct);
-
-        /* ---------- 1. Rückkanal vom Backend ---------- */
 
         IReadOnlyList<BackendStatus> states;
         try
@@ -136,10 +175,58 @@ public sealed class PersistentDownloadService : BackgroundService
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogWarning(ex, "Kann aria2-RPC unter {Url} nicht erreichen, versuche es in 1 Sekunde erneut.");
-            // kurze Pause, damit du nicht im Tight-Loop stuckst
+            // --- RPC-Verbindung verloren ---
+            if (RpcConnection)
+            {
+                RpcConnection = false;
+                _logger.LogWarning(ex, "RPC-Verbindung verloren – pausiere alle aktiven Downloads");
+
+                // Alle aktiven Downloads pausieren
+                foreach (var it in Active.ToList())
+                {
+                    it.State = DownloadState.Paused;
+                    it.PausedDueToDisconnect = true;
+                    // Bucket-Wechsel
+                    ReBucket(it);
+                    ctx.Update(it);
+                }
+
+                await ctx.SaveChangesAsync(ct);
+                Updated?.Invoke();
+            }
+
+            // kurzen Abstand, damit wir nicht tight-loopen
             await Task.Delay(TimeSpan.FromSeconds(1), ct);
             return;
+        }
+
+        // --- RPC-Verbindung wiederhergestellt? ---
+        if (!RpcConnection)
+        {
+            RpcConnection = true;
+            _logger.LogInformation("RPC-Verbindung wiederhergestellt – führe Fortsetzungen durch");
+
+            // Alle Downloads, die wir beim Disconnect pausiert haben, neu anlegen
+            var toResume = ctx.ChangeTracker
+                .Entries<DownloadItem>()
+                .Select(e => e.Entity)
+                .Union(Active)
+                //.Union(Queue)
+                .Where(it => it.PausedDueToDisconnect)
+                .ToList();
+
+            foreach (var it in toResume)
+            {
+                // Neuer GID, da aria2 frisch gestartet
+                it.BackendId = await _backend.AddAsync(it, ct);
+                it.PausedDueToDisconnect = false;
+                it.State = DownloadState.Downloading;
+                ReBucket(it);
+                ctx.Update(it);
+            }
+
+            await ctx.SaveChangesAsync(ct);
+            Updated?.Invoke();
         }
 
         _totalSpeed = 0;
@@ -148,34 +235,34 @@ public sealed class PersistentDownloadService : BackgroundService
         {
             // var it = await ctx.Downloads
             //     .SingleOrDefaultAsync(d => d.BackendId == st.Id, ct);
-            
+
             var it = Active
                 .Concat(Queue)
                 .Concat(History)
                 .FirstOrDefault(it => it.BackendId == st.Id);
-            
+
             if (it is null) continue;
-            
+
             // 2. Neuen Zustand mappen
             var newState = st.RawState switch
             {
-                "active"   => DownloadState.Downloading,
-                "waiting"  => DownloadState.Waiting,
-                "paused"   => DownloadState.Paused,
-                "error"    => DownloadState.Error,
+                "active" => DownloadState.Downloading,
+                "waiting" => DownloadState.Waiting,
+                "paused" => DownloadState.Paused,
+                "error" => DownloadState.Error,
                 "complete" => DownloadState.Complete,
-                _          => DownloadState.Stopped
+                _ => DownloadState.Stopped
             };
-            
+
             // 3. Nur bei echtem Change in die DB
             var isModified = false;
-            
+
             if (it.State != newState)
             {
                 it.State = newState;
                 isModified = true;
             }
-            
+
             // 4. Nur wenn Download gerade läuft, Speed & Fortschritt updaten
             if (newState == DownloadState.Downloading)
             {
@@ -183,10 +270,12 @@ public sealed class PersistentDownloadService : BackgroundService
                 {
                     it.TotalBytes = st.Total;
                 }
+
                 if (it.DownloadedBytes != st.Done)
                 {
                     it.DownloadedBytes = st.Done;
                 }
+
                 if (it.SpeedBytesPerSec != st.Speed)
                 {
                     it.SpeedBytesPerSec = st.Speed;
@@ -200,7 +289,7 @@ public sealed class PersistentDownloadService : BackgroundService
             {
                 ctx.Update(it);
             }
-            
+
             // 6. UI-Rebucket basierend auf neuem State
             ReBucket(it);
         }
@@ -238,7 +327,7 @@ public sealed class PersistentDownloadService : BackgroundService
         {
             await ctx.SaveChangesAsync(ct);
         }
-        
+
         // 8. UI-Update immer
         Updated?.Invoke();
     }
@@ -328,7 +417,7 @@ public sealed class PersistentDownloadService : BackgroundService
 
         // 4) Nur bei State-Wechsel UND wenn sich die Listen unterscheiden
         if (prevState == it.State || oldBucket == newBucket) return;
-        
+
         oldBucket.Remove(it);
         if (!newBucket.Contains(it))
             newBucket.Add(it);

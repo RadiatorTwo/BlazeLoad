@@ -19,7 +19,8 @@ namespace BlazeLoad.Migrations
 
             modelBuilder.Entity("BlazeLoad.Models.DownloadItem", b =>
                 {
-                    b.Property<string>("Id")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("AddedAt")
@@ -27,6 +28,7 @@ namespace BlazeLoad.Migrations
 
                     b.Property<string>("BackendId")
                         .IsRequired()
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Connections")
@@ -36,15 +38,17 @@ namespace BlazeLoad.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
+                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("SpeedBytesPerSec")
+                    b.Property<bool>("PausedDueToDisconnect")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTimeOffset?>("StartedAt")
@@ -54,6 +58,7 @@ namespace BlazeLoad.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("TargetDirectory")
+                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
                     b.Property<long>("TotalBytes")
@@ -61,6 +66,7 @@ namespace BlazeLoad.Migrations
 
                     b.Property<string>("Url")
                         .IsRequired()
+                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
