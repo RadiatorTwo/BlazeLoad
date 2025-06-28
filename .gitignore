@@ -405,3 +405,7 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 .idea
+
+downloads.db
+downloads.db-shm
+downloads.db-wal

@@ -146,8 +146,13 @@ public sealed class PersistentDownloadService : BackgroundService
 
         foreach (var st in states)
         {
-            var it = await ctx.Downloads
-                .SingleOrDefaultAsync(d => d.BackendId == st.Id, ct);
+            // var it = await ctx.Downloads
+            //     .SingleOrDefaultAsync(d => d.BackendId == st.Id, ct);
+            
+            var it = Active
+                .Concat(Queue)
+                .Concat(History)
+                .FirstOrDefault(it => it.BackendId == st.Id);
             
             if (it is null) continue;
             
@@ -220,6 +225,7 @@ public sealed class PersistentDownloadService : BackgroundService
 
             foreach (var it in toStart)
             {
+                it.State = DownloadState.Downloading;
                 it.BackendId = await _backend.AddAsync(it, ct);
                 // aria2 stellt sie sofort auf „waiting“, daher State beibehalten
                 ctx.Update(it);
