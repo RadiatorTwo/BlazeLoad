@@ -3,12 +3,9 @@ using BlazeLoad.Models;
 
 namespace BlazeLoad.Services;
 
-public sealed class Aria2Backend : IDownloadBackend, IAsyncDisposable
+public sealed class Aria2Backend(string url, string secret) : IDownloadBackend, IAsyncDisposable
 {
-    private readonly Aria2NetClient _rpc;
-
-    public Aria2Backend(string url, string secret)
-        => _rpc = new Aria2NetClient(url, secret);
+    private readonly Aria2NetClient _rpc = new(url, secret);
 
     public async Task<string> AddAsync(DownloadItem item, CancellationToken ct = default)
     {

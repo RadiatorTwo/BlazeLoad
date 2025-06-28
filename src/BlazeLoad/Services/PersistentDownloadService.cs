@@ -89,6 +89,22 @@ public sealed class PersistentDownloadService : BackgroundService
         _lastStates[item.Id] = item.State;
     }
 
+    public async Task DeleteAllStoppedAsync()
+    {
+        await using var ctx = await _dbFactory.CreateDbContextAsync();
+        foreach (var it in History)
+        {
+            var item = ctx.Downloads.SingleOrDefault(d => d.Id == it.Id);
+
+            if (item != null) 
+                ctx.Downloads.Remove(item);
+
+            History.Remove(it);
+        }
+
+        await ctx.SaveChangesAsync();
+    }
+
     public Task PauseAsync(DownloadItem it) => _backend.PauseAsync(it.BackendId);
     public Task ResumeAsync(DownloadItem it) => _backend.ResumeAsync(it.BackendId);
     public Task StopAsync(DownloadItem it) => _backend.StopAsync(it.BackendId);
