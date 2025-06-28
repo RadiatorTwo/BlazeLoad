@@ -10,6 +10,7 @@
 <PageTitle>BlazeLoad - Stopped Downloads</PageTitle>
 <MudDivider Class="my-2"/>
 <DownloadToolBar OnAddDownload="ShowAddDialog"
+                 OnDeleteAll="DeleteAllStopped"
                  TotalSpeed="@Downloads.TotalSpeedFormatted"
                  Active="@Downloads.Active.Count"
                  Queued="@Downloads.Queue.Count"
@@ -39,6 +40,11 @@
     
     private Task OnPauseAll() => Downloads.PauseAllAsync();
     private Task OnStopAll()  => Downloads.StopAllAsync();
+    
+    private async Task DeleteAllStopped()
+    {
+        await Downloads.DeleteAllStoppedAsync();
+    }
 
     private async Task ShowAddDialog()
     {
