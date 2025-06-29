@@ -53,6 +53,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
+app.UseCors("AllowChromeExtension");
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
