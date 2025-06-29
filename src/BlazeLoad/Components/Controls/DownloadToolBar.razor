@@ -3,25 +3,37 @@
 
     <!-- ► ■ ✖ +  (global) -->
     <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
-        <MudIconButton Icon="@Icons.Material.Filled.Pause"
-                       Color="Color.Default"
-                       OnClick="@OnPauseAll"
-                       ToolTip="Alle pausieren"/>
+        @if (PauseVisible)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Pause"
+                           Color="Color.Default"
+                           OnClick="@OnPauseAll"
+                           ToolTip="Alle pausieren"/>
+        }
 
-        <MudIconButton Icon="@Icons.Material.Filled.Stop"
-                       Color="Color.Default"
-                       OnClick="@OnStopAll"
-                       ToolTip="Alle stoppen"/>
+        @if (StopVisible)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Stop"
+                           Color="Color.Default"
+                           OnClick="@OnStopAll"
+                           ToolTip="Alle stoppen"/>
+        }
 
-        <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                       Color="Color.Default"
-                       OnClick="@OnDeleteAll"
-                       ToolTip="Alle löschen"/>
+        @if (DeleteVisible)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                           Color="Color.Default"
+                           OnClick="@OnDeleteAll"
+                           ToolTip="Alle löschen"/>
+        }
 
-        <MudIconButton Icon="@Icons.Material.Filled.Add"
-                       Color="Color.Default"
-                       OnClick="@OnAddDownload"
-                       ToolTip="Download hinzufügen"/>
+        @if (AddVisible)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Add"
+                           Color="Color.Default"
+                           OnClick="@OnAddDownload"
+                           ToolTip="Download hinzufügen"/>
+        }
     </MudButtonGroup>
 
     <!-- Info-Kacheln rechts -->
@@ -71,4 +83,10 @@
     [Parameter] public EventCallback OnStopAll { get; set; }
     [Parameter] public EventCallback OnDeleteAll { get; set; }
     [Parameter] public EventCallback OnAddDownload { get; set; }
+
+    /* ---------- Visibility ---------- */
+    [Parameter] public bool PauseVisible { get; set; } = true;
+    [Parameter] public bool StopVisible { get; set; } = true;
+    [Parameter] public bool DeleteVisible { get; set; } = true;
+    [Parameter] public bool AddVisible { get; set; } = true;
 }
