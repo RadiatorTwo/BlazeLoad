@@ -33,6 +33,16 @@ builder.Services.AddSingleton<PersistentDownloadService>(sp =>
         .GetRequiredService<IEnumerable<IHostedService>>()
         .First(s => s is PersistentDownloadService));
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowChromeExtension", policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddControllers();
 
 var app = builder.Build();
