@@ -46,6 +46,15 @@ public sealed class Aria2Backend(string url, string secret) : IDownloadBackend, 
             .ToList();
     }
 
+    public async Task<string> GetDownloadedFilePathAsync(string gid, CancellationToken ct = default)
+    {
+        var status = await _rpc.TellStatusAsync(gid, ct);
+
+        var file = status.Files?.FirstOrDefault();
+        
+        return file is null ? string.Empty : file.Path;
+    }
+
     // public ValueTask DisposeAsync() => _rpc.DisposeAsync();
     public ValueTask DisposeAsync()
     {

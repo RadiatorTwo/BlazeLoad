@@ -44,6 +44,10 @@ namespace BlazeLoad.Migrations
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LocalFilePath")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");

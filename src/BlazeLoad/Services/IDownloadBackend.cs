@@ -16,6 +16,7 @@ public interface IDownloadBackend
     Task ResumeAsync(string id, CancellationToken ct = default);
     Task StopAsync(string id, CancellationToken ct = default);
 
-    /// Aktuellen Status aller im Backend bekannten Jobs abrufen
     Task<IReadOnlyList<BackendStatus>> GetStatusesAsync(CancellationToken ct = default);
+
+    Task<string> GetDownloadedFilePathAsync(string gid, CancellationToken ct = default);
 }

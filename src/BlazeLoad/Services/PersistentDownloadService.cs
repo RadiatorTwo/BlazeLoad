@@ -300,6 +300,16 @@ public sealed class PersistentDownloadService : BackgroundService
                 _totalSpeed += st.Speed;
             }
 
+            if (newState == DownloadState.Complete)
+            {
+                var filePath = await _backend.GetDownloadedFilePathAsync(it.BackendId, ct);
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    it.LocalFilePath = filePath;
+                    isModified = true;
+                }
+            }
+
             // 5. Nur wenn was geändert wurde, EF ChangeTracker informieren
             if (isModified)
             {

@@ -51,6 +51,9 @@ public sealed class DownloadItem
     public long TotalBytes { get; set; }
     public long DownloadedBytes { get; set; }
     
+    [MaxLength(1024)]
+    public string? LocalFilePath { get; set; }
+    
     public DownloadState State { get; set; } = DownloadState.Waiting;
 
     public DateTimeOffset AddedAt { get; set; } = DateTimeOffset.UtcNow;

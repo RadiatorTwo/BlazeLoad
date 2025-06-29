@@ -1,5 +1,7 @@
 @using BlazeLoad.Models
 
+@inject NavigationManager Navigation
+
 <MudTable Items="Items"
           Class="w-100"
           Dense="true"
@@ -33,24 +35,32 @@
         <MudTd Align="Right">
             <MudStack Direction="Row" Row="true" AlignItems="AlignItems.Center" JustifyContent="FlexEnd" Spacing="1">
                 <MudText Typo="Typo.body2">@($"{context.ProgressPercent:0}%")</MudText>
-
-                @if (context.State == DownloadState.Paused || context.State == DownloadState.Stopped)
+                @if (context.State != DownloadState.Complete)
                 {
-                    <MudIconButton Icon="@Icons.Material.Filled.PlayArrow"
+                    @if (context.State == DownloadState.Paused || context.State == DownloadState.Stopped)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.PlayArrow"
+                                       Size="Size.Small"
+                                       OnClick="@(() => OnResume.InvokeAsync(context))"/>
+                    }
+                    else
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Pause"
+                                       Size="Size.Small"
+                                       OnClick="@(() => OnPause.InvokeAsync(context))"/>
+                    }
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Stop"
                                    Size="Size.Small"
-                                   OnClick="@(() => OnResume.InvokeAsync(context))"/>
+                                   Disabled="@(context.State == DownloadState.Stopped)"
+                                   OnClick="@(() => OnStop.InvokeAsync(context))"/>
                 }
                 else
                 {
-                    <MudIconButton Icon="@Icons.Material.Filled.Pause"
+                    <MudIconButton Icon="@Icons.Material.Filled.Download"
                                    Size="Size.Small"
-                                   OnClick="@(() => OnPause.InvokeAsync(context))"/>
+                                   OnClick="@(() => DownloadFile(context))"/>
                 }
-
-                <MudIconButton Icon="@Icons.Material.Filled.Stop"
-                               Size="Size.Small"
-                               Disabled="@(context.State == DownloadState.Stopped)"
-                               OnClick="@(() => OnStop.InvokeAsync(context))"/>
             </MudStack>
         </MudTd>
     </RowTemplate>
@@ -67,21 +77,22 @@
 
 @code {
 
-    /// <summary>Die anzuzeigenden Downloads.</summary>
     [Parameter]
-    public IEnumerable<DownloadItem> Items { get; set; } = Enumerable.Empty<DownloadItem>();
+    public IEnumerable<DownloadItem> Items { get; set; } = [];
 
-    /// <summary>Event: User klickt Fortsetzen.</summary>
     [Parameter]
     public EventCallback<DownloadItem> OnResume { get; set; }
-    
-    /// <summary>Event: User klickt Pause/Fortsetzen.</summary>
+
     [Parameter]
     public EventCallback<DownloadItem> OnPause { get; set; }
 
-    /// <summary>Event: User klickt Stop.</summary>
     [Parameter]
     public EventCallback<DownloadItem> OnStop { get; set; }
+    
+    private void DownloadFile(DownloadItem item)
+    {
+        Navigation.NavigateTo($"/api/downloads/{item.BackendId}", forceLoad: true);
+    }
 
     /* ---------- Hilfsfunktionen ---------- */
     private Color StatusColor(DownloadState status) => status switch
