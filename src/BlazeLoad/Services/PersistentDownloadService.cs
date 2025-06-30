@@ -64,7 +64,7 @@ public sealed class PersistentDownloadService : BackgroundService
 
     /* ---------- Public API ---------- */
 
-    public async Task AddAsync(string url, string? targetFolder = null, string? filename = null, int? split = 8)
+    public async Task<Guid> AddAsync(string url, string? targetFolder = null, string? filename = null, int? split = 8)
     {
         await using var ctx = await _dbFactory.CreateDbContextAsync();
 
@@ -87,6 +87,8 @@ public sealed class PersistentDownloadService : BackgroundService
 
         Queue.Add(item); // UI
         _lastStates[item.Id] = item.State;
+
+        return item.Id;
     }
 
     public async Task DeleteAllStoppedAsync()

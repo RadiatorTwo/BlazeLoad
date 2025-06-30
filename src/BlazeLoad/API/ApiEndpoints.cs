@@ -12,7 +12,7 @@ public static class ApiEndpoints
 
         group.MapPost("/", AddDownload)
             .WithName("AddDownload");
-        
+
         // 2) Neuer GET-Endpoint zum Herunterladen der fertigen Datei
         group.MapGet("/{id}", DownloadFile)
             .WithName("DownloadFile");
@@ -20,7 +20,7 @@ public static class ApiEndpoints
 
     private static async Task<IResult> AddDownload(
         AddDownloadRequest req,
-        IDownloadBackend downloads)
+        PersistentDownloadService downloads)
     {
         if (!Uri.IsWellFormedUriString(req.Url, UriKind.Absolute))
             return Results.BadRequest("Ungültige URL");
@@ -31,12 +31,12 @@ public static class ApiEndpoints
             Name = req.FileName,
             TargetDirectory = req.TargetDirectory,
         };
-        
-        var id = await downloads.AddAsync(downloadItem);
+
+        var id = await downloads.AddAsync(req.Url, req.TargetDirectory, req.FileName);
 
         return Results.Created($"/api/downloads/{id}", new { id });
     }
-    
+
     private static async Task<IResult> DownloadFile(
         string id,
         IDownloadBackend downloads)
